@@ -2,4 +2,4 @@ Flask==0.12
 google-api-python-client==1.6.2
 splitwise==0.0.5
 gunicorn==19.7.1
-
+APScheduler==3.3.1
