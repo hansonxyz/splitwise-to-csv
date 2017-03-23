@@ -5,13 +5,19 @@ from googlesheets import GoogleSheet
 import datetime
 import calendar
 from splitwise import Splitwise
-
+from apscheduler.schedulers.background import BackgroundScheduler
 
 app = Flask(__name__)
 app.secret_key = "test_secret_key"
 
+backupset = False
+
 @app.route("/")
 def home():
+    global backupset
+
+    if backupset:
+        return render_template("home.html")
 
     #Check for Google Credentials
     if 'googlecredentials' not in session:
@@ -25,14 +31,18 @@ def home():
     googleSheet = GoogleSheet(googlecredentials)
 
     #Check for splitwise credentials
-
     if 'splitwiseaccesstoken' not in session:
         return redirect(url_for('splitwiseLogin'))
 
     sObj = Splitwise(Config.splitwise_consumer_key,Config.splitwise_consumer_secret)
     sObj.setAccessToken(session['splitwiseaccesstoken'])
 
-    backupData(googleSheet,sObj)
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(backupData, 'cron', hour=21,minute=34,second=0,args=[googleSheet,sObj])
+    scheduler.start()
+
+    backupset = True
+
     return render_template("home.html")
 
 @app.route("/google/login")
@@ -45,7 +55,6 @@ def googleLogin():
     redirect_uri=url_for('googleLogin', _external=True))
 
     if 'code' not in request.args:
-        print "Code not there"
         auth_uri = flow.step1_get_authorize_url()
         return redirect(auth_uri)
     else:
@@ -75,15 +84,15 @@ def splitwiseLogin():
 
 
 def backupData(googleSheet,splitwiseObj):
-
     #Current time
     now = datetime.datetime.now()
+
+    print "Backing up data at "+str(now)
 
     ########### Get data from Splitwise ####################
     friends = splitwiseObj.getFriends()
 
     ########## Put data in Google #########################
-
     spreadsheetName = "SplitwiseBackup"+str(now.year)
     currMonth  = calendar.month_name[now.month]
 
@@ -141,10 +150,12 @@ def backupData(googleSheet,splitwiseObj):
             lastFilledCol += 1
             updateData[getColumnNameFromIndex(index)+"1"] = name
 
-        #print name, amount
         updateData[getColumnNameFromIndex(index)+str(newRow)] = amount
 
     googleSheet.batchUpdate(spreadsheet.getId(),updateData)
+
+    print "Data backed up successfully"
+
 
 def getColumnNameFromIndex(index):
 
@@ -163,4 +174,4 @@ def getColumnNameFromIndex(index):
 
 
 if __name__ == "__main__":
-    app.run(threaded=True,debug=True)
+    app.run(threaded=True,debug=Config.debug)

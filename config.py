@@ -6,3 +6,5 @@ splitwise_consumer_secret = ''
 
 spreadsheets = {
 }
+
+debug = True
